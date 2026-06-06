@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wallet — Identidade Digital</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      padding: 1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 { color: #1a1a2e; margin-bottom: 0.25rem; font-size: 1.4rem; }
+    .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.2rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 1rem;
+      color: #333;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .step-badge {
+      background: #1a1a2e;
+      color: white;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    button {
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.2rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #16213e; }
+    button:disabled { background: #999; cursor: not-allowed; }
+    input, textarea {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-family: monospace;
+      margin-bottom: 0.5rem;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    pre {
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 0.5rem;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    .status {
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .status.ok { background: #d4edda; color: #155724; }
+    .status.err { background: #f8d7da; color: #721c24; }
+    .status.info { background: #d1ecf1; color: #0c5460; }
+    .vc-card {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      color: white;
+      border-radius: 12px;
+      padding: 1.2rem;
+      margin-top: 0.5rem;
+    }
+    .vc-card .label { font-size: 0.7rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+    .vc-card .value { font-size: 0.95rem; margin-bottom: 0.75rem; }
+    .room-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      border-radius: 20px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.8rem;
+      margin: 0.15rem;
+    }
+    .row { display: flex; gap: 0.5rem; align-items: flex-start; flex-wrap: wrap; }
+    .label-small { font-size: 0.8rem; color: #666; margin-bottom: 0.25rem; }
+    hr { border: none; border-top: 1px solid #eee; margin: 0.75rem 0; }
+  </style>
+</head>
+<body>
+
+<h1>🪪 Wallet — Identidade Digital</h1>
+<p class="subtitle">Simula o aplicativo de carteira digital no celular do estudante</p>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASSO 1 — Gerar Chaves
+═══════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2><span class="step-badge">1</span> Gerar Par de Chaves</h2>
+  <p class="label-small">
+    A wallet gera um par de chaves Ed25519. A chave privada nunca sai do browser.
+    A chave pública é enviada ao Issuer para vincular à credencial (Holder Binding).
+  </p>
+  <br>
+  <button onclick="generateKeys()">Gerar Chaves Ed25519</button>
+  <div id="keys-status"></div>
+  <div id="pub-key-display" style="display:none">
+    <hr>
+    <p class="label-small">Chave pública (JWK) — envie isso ao Issuer:</p>
+    <pre id="pub-key"></pre>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASSO 2 — Receber Credencial
+═══════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2><span class="step-badge">2</span> Receber Credencial (VC)</h2>
+  <p class="label-small">
+    Após o administrador cadastrar você no Issuer e emitir a credencial,
+    cole aqui o SD-JWT VC recebido.
+  </p>
+  <br>
+  <p class="label-small">Seu Holder ID (fornecido pelo Issuer):</p>
+  <input id="holder-id" placeholder="ex: 550e8400-e29b-41d4-a716-446655440000">
+
+  <button onclick="fetchCredential()" id="btn-fetch">Buscar Credencial do Issuer</button>
+  <div id="vc-status"></div>
+  <div id="vc-display" style="display:none"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASSO 3 — Apresentar à Porta (Verifier)
+═══════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2><span class="step-badge">3</span> Apresentar Credencial na Porta</h2>
+  <p class="label-small">
+    Informe o nonce recebido do Verifier (QR Code ou terminal) e a sala.
+    A wallet assina o nonce com sua chave privada — isso prova que você
+    é o dono da credencial (Key Binding JWT).
+  </p>
+  <br>
+  <p class="label-small">Nonce do Verifier (challenge):</p>
+  <input id="nonce" placeholder="Cole aqui o nonce gerado pelo Verifier">
+
+  <p class="label-small">Sala solicitada:</p>
+  <select id="room" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ddd; border-radius:8px; font-size:0.85rem; margin-bottom:0.5rem; background:white;">
+    <option value="scitec-jr">Scitec Jr</option>
+    <option value="enactus-unifesp-sjc">Enactus Unifesp SJC</option>
+    <option value="code-bloco">Code Bloco</option>
+  </select>
+
+  <button onclick="presentCredential()" id="btn-present">Gerar Verifiable Presentation</button>
+  <div id="vp-status"></div>
+  <div id="vp-display" style="display:none">
+    <hr>
+    <p class="label-small">VP Token (SD-JWT VC + Key Binding JWT):</p>
+    <pre id="vp-token"></pre>
+    <br>
+    <button onclick="sendToVerifier()" id="btn-send">Enviar ao Verifier e Abrir Porta</button>
+    <div id="access-result"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// Estado da wallet
+// ═══════════════════════════════════════════════════════════
+const ISSUER_URL   = 'http://localhost:8000';
+const VERIFIER_URL = 'http://localhost:8001';
+
+let privateKey = null;
+let publicKey  = null;
+let storedVC   = null;
+let storedVP   = null;
+
+// Recupera do localStorage ao carregar a página
+window.onload = async () => {
+  const savedPub = localStorage.getItem('pubKeyJwk');
+  const savedVC  = localStorage.getItem('vc');
+  const savedHID = localStorage.getItem('holderId');
+
+  if (savedPub) {
+    // Reimporta a chave pública (a privada não pode ser recuperada após reload
+    // sem exportação — nesta demo simplificamos: regenerar força novo cadastro)
+    document.getElementById('pub-key').textContent = JSON.stringify(JSON.parse(savedPub), null, 2);
+    document.getElementById('pub-key-display').style.display = 'block';
+    setStatus('keys-status', '✅ Chaves carregadas do armazenamento local', 'ok');
+  }
+  if (savedHID) {
+    document.getElementById('holder-id').value = savedHID;
+  }
+  if (savedVC) {
+    storedVC = savedVC;
+    showVC(savedVC);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// Utilitários
+// ═══════════════════════════════════════════════════════════
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="status ${type}">${msg}</div>`;
+}
+
+function b64url(str) {
+  return btoa(unescape(encodeURIComponent(str)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function b64urlBytes(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function parseJwtPayload(token) {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(part));
+  } catch { return null; }
+}
+
+function showVC(token) {
+  const payload = parseJwtPayload(token);
+  if (!payload) return;
+  const rooms = (payload.rooms || [])
+    .map(r => `<span class="room-badge">🚪 ${r}</span>`).join('');
+  const exp = new Date(payload.exp * 1000).toLocaleString('pt-BR');
+
+  document.getElementById('vc-display').innerHTML = `
+    <div class="vc-card">
+      <div class="label">Verifiable Credential</div>
+      <div class="value" style="font-size:1.1rem; font-weight:600">${payload.name || '—'}</div>
+      <div class="label">Matrícula</div>
+      <div class="value">${payload.matricula || '—'}</div>
+      <div class="label">Salas autorizadas</div>
+      <div class="value">${rooms}</div>
+      <div class="label">Expira em</div>
+      <div class="value">${exp}</div>
+      <div class="label">Emitido por</div>
+      <div class="value" style="font-size:0.8rem">${payload.iss}</div>
+    </div>
+  `;
+  document.getElementById('vc-display').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════
+// Passo 1 — Gerar chaves
+// ═══════════════════════════════════════════════════════════
+async function generateKeys() {
+  try {
+    setStatus('keys-status', '⏳ Gerando chaves...', 'info');
+
+    const keyPair = await crypto.subtle.generateKey(
+      { name: 'Ed25519' },
+      true,                        // exportável
+      ['sign', 'verify']
+    );
+    privateKey = keyPair.privateKey;
+    publicKey  = keyPair.publicKey;
+
+    // Exporta chave pública em formato JWK para enviar ao Issuer
+    const pubJwk = await crypto.subtle.exportKey('jwk', publicKey);
+    localStorage.setItem('pubKeyJwk', JSON.stringify(pubJwk));
+
+    document.getElementById('pub-key').textContent = JSON.stringify(pubJwk, null, 2);
+    document.getElementById('pub-key-display').style.display = 'block';
+    setStatus('keys-status', '✅ Par de chaves Ed25519 gerado com sucesso! A chave privada está segura no browser.', 'ok');
+  } catch (e) {
+    setStatus('keys-status', `❌ Erro: ${e.message}`, 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Passo 2 — Buscar credencial do Issuer
+// ═══════════════════════════════════════════════════════════
+async function fetchCredential() {
+  const holderId = document.getElementById('holder-id').value.trim();
+  if (!holderId) {
+    setStatus('vc-status', '❌ Informe o Holder ID', 'err');
+    return;
+  }
+
+  setStatus('vc-status', '⏳ Buscando credencial do Issuer...', 'info');
+
+  try {
+    const res = await fetch(`${ISSUER_URL}/issue/${holderId}`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+    storedVC = data.sd_jwt_vc;
+
+    localStorage.setItem('vc', storedVC);
+    localStorage.setItem('holderId', holderId);
+
+    setStatus('vc-status', '✅ Credencial recebida e armazenada na wallet!', 'ok');
+    showVC(storedVC);
+  } catch (e) {
+    setStatus('vc-status', `❌ Erro: ${e.message}`, 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Passo 3 — Gerar Verifiable Presentation
+// ═══════════════════════════════════════════════════════════
+async function presentCredential() {
+  if (!privateKey) {
+    setStatus('vp-status', '❌ Gere as chaves primeiro (Passo 1)', 'err');
+    return;
+  }
+  if (!storedVC) {
+    setStatus('vp-status', '❌ Busque a credencial primeiro (Passo 2)', 'err');
+    return;
+  }
+
+  const nonce = document.getElementById('nonce').value.trim();
+  const room  = document.getElementById('room').value.trim();
+
+  if (!nonce) {
+    setStatus('vp-status', '❌ Informe o nonce do Verifier', 'err');
+    return;
+  }
+
+  setStatus('vp-status', '⏳ Assinando com chave privada...', 'info');
+
+  try {
+    /*
+     * Key Binding JWT — prova que o holder possui a chave privada correspondente
+     * ao cnf.jwk que está dentro da credencial.
+     *
+     * Header: alg=EdDSA, typ=kb+jwt
+     * Payload: nonce (do Verifier), aud (Verifier URL), iat, room_requested
+     */
+    const header  = b64url(JSON.stringify({ alg: 'EdDSA', typ: 'kb+jwt' }));
+    const payload = b64url(JSON.stringify({
+      nonce,
+      aud: VERIFIER_URL,
+      room_requested: room,
+      iat: Math.floor(Date.now() / 1000),
+    }));
+
+    const sigInput = new TextEncoder().encode(`${header}.${payload}`);
+    const sigBytes = await crypto.subtle.sign('Ed25519', privateKey, sigInput);
+    const sig      = b64urlBytes(sigBytes);
+
+    const kbJwt = `${header}.${payload}.${sig}`;
+
+    // VP = SD-JWT VC + "~" + Key Binding JWT
+    // (simplificação do formato SD-JWT — sem disclosures seletivos nesta demo)
+    storedVP = `${storedVC}~${kbJwt}`;
+
+    document.getElementById('vp-token').textContent = storedVP;
+    document.getElementById('vp-display').style.display = 'block';
+    setStatus('vp-status', '✅ Verifiable Presentation gerada! Nonce assinado com sua chave privada.', 'ok');
+    document.getElementById('access-result').innerHTML = '';
+  } catch (e) {
+    setStatus('vp-status', `❌ Erro: ${e.message}`, 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Passo 3b — Enviar VP ao Verifier
+// ═══════════════════════════════════════════════════════════
+async function sendToVerifier() {
+  if (!storedVP) return;
+
+  document.getElementById('access-result').innerHTML =
+    '<div class="status info">⏳ Enviando ao Verifier...</div>';
+
+  try {
+    const res = await fetch(`${VERIFIER_URL}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vp_token: storedVP }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data.access === 'granted') {
+      document.getElementById('access-result').innerHTML = `
+        <div class="status ok">
+          ✅ <strong>ACESSO LIBERADO</strong><br>
+          Sala: ${data.room}<br>
+          Bem-vindo, ${data.holder_name}!
+        </div>`;
+    } else {
+      document.getElementById('access-result').innerHTML = `
+        <div class="status err">
+          ❌ <strong>ACESSO NEGADO</strong><br>
+          ${data.detail || JSON.stringify(data)}
+        </div>`;
+    }
+  } catch (e) {
+    document.getElementById('access-result').innerHTML =
+      `<div class="status err">❌ Erro de conexão: ${e.message}</div>`;
+  }
+}
+</script>
+</body>
+</html>

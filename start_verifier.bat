@@ -1,0 +1,3 @@
+@echo off
+echo Iniciando Verifier na porta 8001...
+uvicorn verifier.main:app --host 0.0.0.0 --port 8001 --reload

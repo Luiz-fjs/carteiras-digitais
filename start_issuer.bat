@@ -1,0 +1,3 @@
+@echo off
+echo Iniciando Issuer na porta 8000...
+uvicorn issuer.main:app --host 0.0.0.0 --port 8000 --reload
