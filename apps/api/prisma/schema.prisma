@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Issuer {
+  id                  String       @id @default(uuid())
+  name                String       @unique
+  did                 String       @unique
+  type                String
+  publicKey           Bytes        @map("public_key")
+  encryptedPrivateKey Bytes        @map("encrypted_private_key")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  credentials         Credential[]
+  rooms               Room[]
+
+  @@map("issuers")
+}
+
+model Room {
+  id               String            @id @default(uuid())
+  name             String
+  associationId    String            @map("association_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  association      Issuer            @relation(fields: [associationId], references: [id])
+  accessLogs       AccessLog[]
+  nonces           Nonce[]
+  visitorApprovals VisitorApproval[]
+
+  @@map("rooms")
+}
+
+model Credential {
+  id               String            @id @default(uuid())
+  credentialType   String            @map("credential_type")
+  issuerId         String            @map("issuer_id")
+  issuerDid        String            @map("issuer_did")
+  subjectDid       String            @map("subject_did")
+  jwt              String
+  claims           String            @default("{}")
+  status           String            @default("active")
+  issuedAt         DateTime          @default(now()) @map("issued_at")
+  expiresAt        DateTime?         @map("expires_at")
+  revokedAt        DateTime?         @map("revoked_at")
+  revocationReason String?           @map("revocation_reason")
+  issuer           Issuer            @relation(fields: [issuerId], references: [id])
+  accessLogs       AccessLog[]
+  visitorApprovals VisitorApproval[]
+
+  @@index([subjectDid], map: "idx_credentials_subject")
+  @@index([status], map: "idx_credentials_status")
+  @@index([credentialType, subjectDid], map: "idx_credentials_type_subject")
+  @@map("credentials")
+}
+
+model VisitorApproval {
+  id            String      @id @default(uuid())
+  credentialId  String?     @map("credential_id")
+  visitorName   String      @map("visitor_name")
+  visitorEmail  String      @map("visitor_email")
+  approverDid   String      @map("approver_did")
+  approvalToken String      @default(uuid()) @map("approval_token")
+  status        String      @default("pending")
+  roomId        String      @map("room_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  approvedAt    DateTime?   @map("approved_at")
+  credential    Credential? @relation(fields: [credentialId], references: [id])
+  room          Room        @relation(fields: [roomId], references: [id])
+
+  @@index([approvalToken], map: "idx_visitor_approvals_token")
+  @@map("visitor_approvals")
+}
+
+model AccessLog {
+  id             String      @id @default(uuid())
+  roomId         String      @map("room_id")
+  subjectDid     String      @map("subject_did")
+  credentialType String      @map("credential_type")
+  credentialId   String?     @map("credential_id")
+  granted        Boolean
+  reason         String?
+  verifiedAt     DateTime    @default(now()) @map("verified_at")
+  room           Room        @relation(fields: [roomId], references: [id])
+  credential     Credential? @relation(fields: [credentialId], references: [id])
+
+  @@index([roomId, verifiedAt(sort: Desc)], map: "idx_access_logs_room")
+  @@map("access_logs")
+}
+
+model Nonce {
+  id        String   @id @default(uuid())
+  nonce     String   @unique
+  roomId    String   @map("room_id")
+  room      Room     @relation(fields: [roomId], references: [id])
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+
+  @@index([nonce], map: "idx_nonces_value")
+  @@map("nonces")
+}

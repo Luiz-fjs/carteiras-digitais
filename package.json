@@ -1,0 +1,25 @@
+{
+  "name": "accesschain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de controle de acesso baseado em DIDs e VCs (W3C)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:crypto": "npm run build -w packages/crypto",
+    "build:types": "npm run build -w packages/shared-types",
+    "build:packages": "npm run build:types && npm run build:crypto",
+    "db:seed": "npx tsx scripts/seed.ts",
+    "dev:api": "npm run dev -w @accesschain/api",
+    "dev:portal": "npm run dev -w @accesschain/issuer-portal",
+    "dev:wallet": "npm run dev -w @accesschain/holder-wallet",
+    "dev:terminal": "npm run dev -w @accesschain/verifier-terminal"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

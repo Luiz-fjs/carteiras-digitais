@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: #09090b;
+}
+
+/* Scanner QR — contorno animado */
+#qr-reader video {
+  border-radius: 12px;
+}
+
+#qr-reader {
+  border: none !important;
+}
+
+/* Efeito de brilho na borda do resultado */
+@keyframes borderGlow {
+  0%, 100% { box-shadow: 0 0 20px currentColor; }
+  50% { box-shadow: 0 0 40px currentColor; }
+}
+
+.glow-border {
+  animation: borderGlow 1.5s ease-in-out infinite;
+}
+
+/* Scrollbar customizada no log */
+.log-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.log-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.log-scroll::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}

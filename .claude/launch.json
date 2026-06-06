@@ -1,0 +1,26 @@
+﻿{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:portal"],
+      "port": 3001,
+      "autoPort": false
+    },
+    {
+      "name": "wallet",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:wallet"],
+      "port": 3002,
+      "autoPort": false
+    },
+    {
+      "name": "terminal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:terminal"],
+      "port": 3003,
+      "autoPort": false
+    }
+  ]
+}
