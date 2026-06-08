@@ -83,7 +83,7 @@ export default function TerminalPage() {
       showResult({
         granted: result.granted,
         type: result.credentialType ?? 'unknown',
-        holderName: result.holderDid?.slice(0, 20) + '...' ?? 'Desconhecido',
+        holderName: result.holderDid ? `${result.holderDid.slice(0, 20)}...` : 'Desconhecido',
         reason: result.reason,
       });
     } catch {

@@ -114,8 +114,8 @@ function ApresentarContent() {
       const dataUrl = await QRCode.toDataURL(qrPayload, {
         width: 300,
         margin: 2,
-        color: { dark: '#ffffff', light: '#00000000' },
-        errorCorrectionLevel: 'L',
+        color: { dark: '#000000', light: '#ffffff' },
+        errorCorrectionLevel: 'M',
       });
       setQrDataUrl(dataUrl);
       setCountdown(300);
