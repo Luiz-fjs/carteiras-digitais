@@ -112,10 +112,10 @@ function ApresentarContent() {
         nonce: serverNonce,
       });
       const dataUrl = await QRCode.toDataURL(qrPayload, {
-        width: 300,
+        width: 512,
         margin: 2,
         color: { dark: '#000000', light: '#ffffff' },
-        errorCorrectionLevel: 'M',
+        errorCorrectionLevel: 'L',
       });
       setQrDataUrl(dataUrl);
       setCountdown(300);

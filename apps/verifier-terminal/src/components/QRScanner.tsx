@@ -36,17 +36,26 @@ export function QRScanner({ onScan, active }: QRScannerProps) {
         const scanner = new Html5Qrcode('qr-reader-container', {
           verbose: false,
           formatsToSupport: [module.Html5QrcodeSupportedFormats.QR_CODE],
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          experimentalFeatures: { useBarCodeDetectorIfSupported: false },
         });
         scannerRef.current = scanner;
         setError('');
 
+        const baseVideo: MediaTrackConstraints = {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        };
+
         const startWithConstraints = async (constraints?: MediaTrackConstraints) => {
           await scanner.start(
-            constraints ?? { facingMode: 'environment' },
+            constraints ?? { ...baseVideo, facingMode: 'environment' },
             {
-              fps: 10,
-              qrbox: { width: 280, height: 280 },
+              fps: 15,
+              qrbox: (vw: number, vh: number) => {
+                const side = Math.floor(Math.min(vw, vh) * 0.8);
+                return { width: side, height: side };
+              },
+              aspectRatio: 1.7777778,
               disableFlip: false,
             },
             (decodedText: string) => {
@@ -70,7 +79,7 @@ export function QRScanner({ onScan, active }: QRScannerProps) {
         };
 
         try {
-          await startWithConstraints({ facingMode: { exact: 'environment' } });
+          await startWithConstraints({ ...baseVideo, facingMode: { exact: 'environment' } });
         } catch (startError: any) {
           const fallbackMessage = String(startError || '');
           const isOverconstrained =
