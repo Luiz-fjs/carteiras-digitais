@@ -70,21 +70,34 @@ export default function TerminalPage() {
 
     try {
       const parsed = JSON.parse(data);
+      // SEGURANÇA: o roomId enviado pra API é o da sala ONDE este terminal está,
+      // não o que veio dentro do QR. Senão um QR gerado pra sala X funcionaria
+      // em qualquer terminal de outra sala.
+      const terminalRoomId = selectedRoom?.id ?? parsed.roomId;
       const res = await fetch(`${API}/presentations/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vpJWT: parsed.vpJWT,
-          roomId: parsed.roomId,
+          roomId: terminalRoomId,
           nonce: parsed.nonce,
         }),
       });
       const result = await res.json();
 
+      // Prioriza o nome (vem do credentialSubject.nome da VC).
+      // Cai pro DID truncado se a credencial não tiver nome (ex: erro antes da verificação da VC).
+      const displayName =
+        result.holderName && result.holderName.trim().length > 0
+          ? result.holderName
+          : result.holderDid
+            ? `${result.holderDid.slice(0, 20)}...`
+            : 'Desconhecido';
+
       showResult({
         granted: result.granted,
         type: result.credentialType ?? 'unknown',
-        holderName: result.holderDid ? `${result.holderDid.slice(0, 20)}...` : 'Desconhecido',
+        holderName: displayName,
         reason: result.reason,
       });
     } catch {
@@ -95,7 +108,7 @@ export default function TerminalPage() {
         reason: 'QR Code inválido ou erro de comunicação com a API',
       });
     }
-  }, [state, showResult]);
+  }, [state, showResult, selectedRoom]);
 
   // Handler para modo simulação
   const handleSimScan = useCallback((scenario: DemoScenario) => {

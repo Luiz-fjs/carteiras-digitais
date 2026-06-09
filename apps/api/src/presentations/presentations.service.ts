@@ -8,6 +8,7 @@ export interface AccessResult {
   reason?: string;
   credentialType?: string;
   holderDid?: string;
+  holderName?: string;
 }
 
 @Injectable()
@@ -37,6 +38,11 @@ export class PresentationsService {
     }
     if (new Date() > nonceRecord.expiresAt) {
       return this.deny(roomId, '', '', 'Nonce expirado', null);
+    }
+    // SEGURANÇA: o nonce só vale pra sala em que foi emitido. Senão um QR gerado
+    // pra sala X seria aceito num terminal de sala Y se o atacante trocasse o roomId.
+    if (nonceRecord.roomId !== roomId) {
+      return this.deny(roomId, '', '', 'Nonce não pertence a esta sala', null);
     }
 
     // Marca nonce como usado
@@ -78,6 +84,7 @@ export class PresentationsService {
     } | undefined;
     const credentialType = vcData?.type?.[1] ?? '';
     const claims = vcData?.credentialSubject ?? {};
+    const holderName = (claims.nome as string | undefined) ?? '';
 
     // 4. Consulta revogação no banco
     const credRecord = await this.prisma.credential.findUnique({
@@ -104,7 +111,7 @@ export class PresentationsService {
     switch (credentialType) {
       case 'CoordenacaoCredential': {
         // Coordenação tem acesso a qualquer sala a qualquer hora
-        return this.grant(roomId, holderDid, credentialType, credentialId);
+        return this.grant(roomId, holderDid, credentialType, credentialId, holderName);
       }
 
       case 'MembroCredential': {
@@ -114,10 +121,10 @@ export class PresentationsService {
           return this.deny(
             roomId, holderDid, credentialType,
             'Credencial não autoriza acesso a esta sala',
-            credentialId,
+            credentialId, holderName,
           );
         }
-        return this.grant(roomId, holderDid, credentialType, credentialId);
+        return this.grant(roomId, holderDid, credentialType, credentialId, holderName);
       }
 
       case 'ColaboradorCredential': {
@@ -127,7 +134,7 @@ export class PresentationsService {
         const vcRoomId = claims.roomId as string | undefined;
 
         if (vcRoomId !== roomId) {
-          return this.deny(roomId, holderDid, credentialType, 'Credencial não autoriza acesso a esta sala', credentialId);
+          return this.deny(roomId, holderDid, credentialType, 'Credencial não autoriza acesso a esta sala', credentialId, holderName);
         }
 
         const now = new Date();
@@ -140,7 +147,7 @@ export class PresentationsService {
           return this.deny(
             roomId, holderDid, credentialType,
             `Acesso permitido apenas ${dias[allowedDay]} das ${startHour}h às ${endHour}h`,
-            credentialId,
+            credentialId, holderName,
           );
         }
 
@@ -149,12 +156,12 @@ export class PresentationsService {
             return this.deny(
               roomId, holderDid, credentialType,
               `Acesso permitido apenas das ${startHour}h às ${endHour}h`,
-              credentialId,
+              credentialId, holderName,
             );
           }
         }
 
-        return this.grant(roomId, holderDid, credentialType, credentialId);
+        return this.grant(roomId, holderDid, credentialType, credentialId, holderName);
       }
 
       case 'VisitanteCredential': {
@@ -163,7 +170,7 @@ export class PresentationsService {
           where: { id: credentialId },
           data: { status: 'used' },
         });
-        return this.grant(roomId, holderDid, credentialType, credentialId);
+        return this.grant(roomId, holderDid, credentialType, credentialId, holderName);
       }
 
       case 'AlunoCredential': {
@@ -171,12 +178,12 @@ export class PresentationsService {
         return this.deny(
           roomId, holderDid, credentialType,
           'Credencial de Aluno não autoriza acesso direto — precisa ser Membro de uma agremiação',
-          credentialId,
+          credentialId, holderName,
         );
       }
 
       default:
-        return this.deny(roomId, holderDid, credentialType, `Tipo de credencial desconhecido: ${credentialType}`, credentialId);
+        return this.deny(roomId, holderDid, credentialType, `Tipo de credencial desconhecido: ${credentialType}`, credentialId, holderName);
     }
   }
 
@@ -189,20 +196,20 @@ export class PresentationsService {
   }
 
   private async grant(
-    roomId: string, holderDid: string, credentialType: string, credentialId: string,
+    roomId: string, holderDid: string, credentialType: string, credentialId: string, holderName?: string,
   ): Promise<AccessResult> {
     await this.prisma.accessLog.create({
       data: { roomId, subjectDid: holderDid, credentialType, credentialId, granted: true },
     });
-    return { granted: true, credentialType, holderDid };
+    return { granted: true, credentialType, holderDid, holderName };
   }
 
   private async deny(
-    roomId: string, holderDid: string, credentialType: string, reason: string, credentialId: string | null,
+    roomId: string, holderDid: string, credentialType: string, reason: string, credentialId: string | null, holderName?: string,
   ): Promise<AccessResult> {
     await this.prisma.accessLog.create({
       data: { roomId, subjectDid: holderDid || 'unknown', credentialType: credentialType || 'unknown', credentialId, granted: false, reason },
     });
-    return { granted: false, reason, credentialType, holderDid };
+    return { granted: false, reason, credentialType, holderDid, holderName };
   }
 }
