@@ -112,7 +112,7 @@ Espere cada um terminar de subir antes de testar (a API precisa estar online pri
 1. **Carteira Digital** (`:3002`) — abre e copia o **DID** gerado para o aluno.
 2. **Portal do Issuer** (`:3001`):
    - Seleciona **UNIFESP** → emite **StudentCredential** para o DID copiado.
-   - Seleciona uma **agremiação** (CodeBloco, AAJA, etc.) → emite **MembershipCredential** para o mesmo DID.
+   - Seleciona uma **agremiação** (CodeBloco, AAAJA, etc.) → emite **MembershipCredential** para o mesmo DID.
 3. Volta à **Carteira** → clica **"Atualizar"** → as duas credenciais aparecem listadas.
 4. Clica **"Apresentar na porta"** em uma credencial → escolhe a sala → clica **"Gerar QR Code para acesso"**.
    - O QR Code aparece **junto com um código copia-e-cola** (estilo Pix), com botão **Copiar**.

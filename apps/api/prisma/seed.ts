@@ -34,7 +34,7 @@ const ISSUERS = [
   { name: 'CodeBloco', type: 'association' },
   { name: 'CodeLabs', type: 'association' },
   { name: 'Enactus', type: 'association' },
-  { name: 'AAJA', type: 'association' },
+  { name: 'AAAJA', type: 'association' },
 ];
 
 const ROOMS: Record<string, string> = {
@@ -42,7 +42,7 @@ const ROOMS: Record<string, string> = {
   'CodeBloco': 'Sala CodeBloco',
   'CodeLabs': 'Sala CodeLabs',
   'Enactus': 'Sala Enactus',
-  'AAJA': 'Sala AAJA',
+  'AAAJA': 'Sala AAAJA',
 };
 
 async function main() {
