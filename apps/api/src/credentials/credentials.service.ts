@@ -113,7 +113,7 @@ export class CredentialsService {
       },
       orderBy: { issuedAt: 'desc' },
     });
-    return creds.map(c => ({ ...c, claims: typeof c.claims === 'string' ? JSON.parse(c.claims) : c.claims }));
+    return creds.map((c: typeof creds[number]) => ({ ...c, claims: typeof c.claims === 'string' ? JSON.parse(c.claims) : c.claims }));
   }
 
   async revoke(id: string, reason?: string) {

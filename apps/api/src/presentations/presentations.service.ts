@@ -46,8 +46,10 @@ export class PresentationsService {
     let vpPayload;
     try {
       vpPayload = await this.crypto.verifyVP(vpJWT, nonce);
-    } catch {
-      return this.deny(roomId, '', '', 'Assinatura da VP inválida ou expirada', null);
+    } catch (e) {
+      console.error('[verifyVP FAILED]', e);
+      const msg = e instanceof Error ? e.message : 'erro desconhecido';
+      return this.deny(roomId, '', '', `Assinatura da VP inválida ou expirada (${msg})`, null);
     }
 
     const holderDid = vpPayload.iss ?? '';
@@ -63,8 +65,10 @@ export class PresentationsService {
     let vcPayload;
     try {
       vcPayload = await this.crypto.verifyVC(vcJWT);
-    } catch {
-      return this.deny(roomId, holderDid, '', 'Assinatura da VC inválida', null);
+    } catch (e) {
+      console.error('[verifyVC FAILED]', e);
+      const msg = e instanceof Error ? e.message : 'erro desconhecido';
+      return this.deny(roomId, holderDid, '', `Assinatura da VC inválida (${msg})`, null);
     }
 
     const credentialId = vcPayload.jti ?? '';

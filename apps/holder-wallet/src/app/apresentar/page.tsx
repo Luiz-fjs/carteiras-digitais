@@ -17,6 +17,8 @@ function ApresentarContent() {
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [selectedRoom, setSelectedRoom] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [qrPayload, setQrPayload] = useState<string>('');
+  const [copied, setCopied] = useState(false);
   const [nonce, setNonce] = useState('');
   const [vpJWT, setVpJWT] = useState('');
   const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'done' | 'error'>('loading');
@@ -118,6 +120,8 @@ function ApresentarContent() {
         errorCorrectionLevel: 'L',
       });
       setQrDataUrl(dataUrl);
+      setQrPayload(qrPayload);
+      setCopied(false);
       setCountdown(300);
       setStatus('done');
     } catch (e) {
@@ -182,6 +186,35 @@ function ApresentarContent() {
               <p className={`text-lg font-mono font-bold mt-1 ${countdown < 60 ? 'text-red-400' : 'text-cyan-400'}`}>
                 Expira em {formatTime(countdown)}
               </p>
+            </div>
+
+            {/* Copia-e-cola (estilo Pix) */}
+            <div className="text-left space-y-2 pt-2">
+              <p className="text-xs text-zinc-400">Ou copie o código e cole no terminal:</p>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={qrPayload}
+                  onFocus={e => e.currentTarget.select()}
+                  className="flex-1 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 text-[10px] font-mono truncate"
+                />
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(qrPayload);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {
+                      // fallback: seleciona o input
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition ${
+                    copied ? 'bg-emerald-600 text-white' : 'bg-accent hover:bg-accent/80 text-white'
+                  }`}
+                >
+                  {copied ? 'Copiado!' : 'Copiar'}
+                </button>
+              </div>
             </div>
 
             {/* Progress bar */}

@@ -11,6 +11,44 @@ ed.etc.sha512Sync = (...m: Uint8Array[]) => {
   return h.digest();
 };
 
+// base58btc decoder inline — substitui `multiformats/bases/base58` que é ESM-only
+// e quebra no NestJS (CommonJS). Compatível com o formato did:key (prefixo 'z').
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const BASE58_MAP = new Map<string, number>();
+for (let i = 0; i < BASE58_ALPHABET.length; i++) BASE58_MAP.set(BASE58_ALPHABET[i], i);
+
+function decodeBase58btc(input: string): Uint8Array {
+  // 'z' é o prefixo multibase do base58btc; o resto é a string base58 pura
+  if (input.startsWith('z')) input = input.slice(1);
+  if (input.length === 0) return new Uint8Array(0);
+
+  // Conta zeros à esquerda (cada '1' = byte 0x00)
+  let leadingZeros = 0;
+  while (leadingZeros < input.length && input[leadingZeros] === '1') leadingZeros++;
+
+  // Decodifica como big integer via array de bytes
+  const bytes: number[] = [];
+  for (let i = 0; i < input.length; i++) {
+    const value = BASE58_MAP.get(input[i]);
+    if (value === undefined) throw new Error(`Caractere base58 inválido: ${input[i]}`);
+    let carry = value;
+    for (let j = 0; j < bytes.length; j++) {
+      carry += bytes[j] * 58;
+      bytes[j] = carry & 0xff;
+      carry >>>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>>= 8;
+    }
+  }
+
+  // Reverte (big-endian) e prefixa zeros
+  const result = new Uint8Array(leadingZeros + bytes.length);
+  for (let i = 0; i < bytes.length; i++) result[leadingZeros + bytes.length - 1 - i] = bytes[i];
+  return result;
+}
+
 @Injectable()
 export class CryptoService {
   decryptPrivateKey(encrypted: Buffer, secret: string): Uint8Array {
@@ -67,7 +105,7 @@ export class CryptoService {
     if (!issuerDID?.startsWith('did:key:z')) {
       throw new Error('VC inválida: iss não é um DID:key');
     }
-    const publicKey = this.didToPublicKey(issuerDID);
+    const publicKey = await this.didToPublicKey(issuerDID);
     const key = await jose.importJWK(
       { kty: 'OKP', crv: 'Ed25519', x: jose.base64url.encode(publicKey) },
       'EdDSA',
@@ -82,7 +120,7 @@ export class CryptoService {
     if (!holderDID?.startsWith('did:key:z')) {
       throw new Error('VP inválida: iss não é um DID:key');
     }
-    const publicKey = this.didToPublicKey(holderDID);
+    const publicKey = await this.didToPublicKey(holderDID);
     const key = await jose.importJWK(
       { kty: 'OKP', crv: 'Ed25519', x: jose.base64url.encode(publicKey) },
       'EdDSA',
@@ -99,12 +137,10 @@ export class CryptoService {
     return jose.decodeJwt(jwt);
   }
 
-  private didToPublicKey(did: string): Uint8Array {
-    // Importação síncrona do base58btc via require para CommonJS
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { base58btc } = require('multiformats/bases/base58');
+  private async didToPublicKey(did: string): Promise<Uint8Array> {
     const multibaseEncoded = did.slice('did:key:'.length);
-    const decoded = base58btc.decode(multibaseEncoded);
+    const decoded = decodeBase58btc(multibaseEncoded);
+    // remove multicodec prefix (2 bytes: 0xed 0x01 para Ed25519)
     return decoded.slice(2);
   }
 }

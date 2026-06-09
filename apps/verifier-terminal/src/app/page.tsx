@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Clock } from '@/components/Clock';
 import { ScannerView } from '@/components/ScannerView';
 import { QRScanner } from '@/components/QRScanner';
+import { PasteInput } from '@/components/PasteInput';
 import { VerifyingSpinner } from '@/components/VerifyingSpinner';
 import { AccessResult } from '@/components/AccessResult';
 import { AccessLog } from '@/components/AccessLog';
@@ -21,7 +22,7 @@ export default function TerminalPage() {
   const [state, setState] = useState<TerminalState>('scanning');
   const [currentResult, setCurrentResult] = useState<{ granted: boolean; type: string; holderName: string; reason?: string } | null>(null);
   const [logEntries, setLogEntries] = useState<AccessLogEntry[]>([]);
-  const [mode, setMode] = useState<'camera' | 'simulation'>('camera');
+  const [mode, setMode] = useState<'camera' | 'paste' | 'simulation'>('camera');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
@@ -143,6 +144,14 @@ export default function TerminalPage() {
                 Câmera
               </button>
               <button
+                onClick={() => setMode('paste')}
+                className={`px-3 py-1 text-[10px] font-medium transition ${
+                  mode === 'paste' ? 'bg-cyan-500 text-black' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Colar
+              </button>
+              <button
                 onClick={() => setMode('simulation')}
                 className={`px-3 py-1 text-[10px] font-medium transition ${
                   mode === 'simulation' ? 'bg-amber-500 text-black' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300'
@@ -160,6 +169,10 @@ export default function TerminalPage() {
         <main className="flex-1 flex items-center justify-center p-8">
           {state === 'scanning' && mode === 'camera' && (
             <QRScanner onScan={handleQRScan} active={state === 'scanning'} />
+          )}
+
+          {state === 'scanning' && mode === 'paste' && (
+            <PasteInput onSubmit={handleQRScan} />
           )}
 
           {state === 'scanning' && mode === 'simulation' && (

@@ -41,14 +41,16 @@ export function QRScanner({ onScan, active }: QRScannerProps) {
         scannerRef.current = scanner;
         setError('');
 
-        const baseVideo: MediaTrackConstraints = {
+        // html5-qrcode exige que o 1º arg de start() tenha exatamente 1 chave
+        // (facingMode OU deviceId). Resolução vai em config.videoConstraints.
+        const hdConstraints: MediaTrackConstraints = {
           width: { ideal: 1920 },
           height: { ideal: 1080 },
         };
 
-        const startWithConstraints = async (constraints?: MediaTrackConstraints) => {
+        const startWithConstraints = async (cameraIdOrConfig: { facingMode: ConstrainDOMString } | { deviceId: ConstrainDOMString }) => {
           await scanner.start(
-            constraints ?? { ...baseVideo, facingMode: 'environment' },
+            cameraIdOrConfig,
             {
               fps: 15,
               qrbox: (vw: number, vh: number) => {
@@ -57,7 +59,8 @@ export function QRScanner({ onScan, active }: QRScannerProps) {
               },
               aspectRatio: 1.7777778,
               disableFlip: false,
-            },
+              videoConstraints: hdConstraints,
+            } as any,
             (decodedText: string) => {
               if (!mounted) return;
               onScan(decodedText);
@@ -79,7 +82,7 @@ export function QRScanner({ onScan, active }: QRScannerProps) {
         };
 
         try {
-          await startWithConstraints({ ...baseVideo, facingMode: { exact: 'environment' } });
+          await startWithConstraints({ facingMode: { exact: 'environment' } });
         } catch (startError: any) {
           const fallbackMessage = String(startError || '');
           const isOverconstrained =
@@ -88,7 +91,7 @@ export function QRScanner({ onScan, active }: QRScannerProps) {
             fallbackMessage.includes('Constraint') ||
             fallbackMessage.includes('NotFoundError');
           if (isOverconstrained) {
-            await startWithConstraints(undefined);
+            await startWithConstraints({ facingMode: 'environment' });
           } else {
             throw startError;
           }
