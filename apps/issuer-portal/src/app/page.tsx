@@ -35,6 +35,13 @@ export default function IssuerPortal() {
   const [result, setResult] = useState<{ ok: boolean; msg: string; jwt?: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Revogação
+  const [revokeDid, setRevokeDid] = useState('');
+  const [holderCreds, setHolderCreds] = useState<Array<{ id: string; credentialType: string; status: string; issuer: { name: string }; claims: Record<string, unknown> }>>([]);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revokeResult, setRevokeResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [searchingCreds, setSearchingCreds] = useState(false);
+
   // Claims por tipo
   const [nome, setNome] = useState('');
   const [ra, setRa] = useState('');
@@ -118,6 +125,58 @@ export default function IssuerPortal() {
       setLoading(false);
     }
   }, [selectedIssuer, credType, subjectDid, nome, ra, curso, campus, cargo, departamento, roomId, allowedDay, startHour, endHour, funcao]);
+
+  // Busca credenciais de um holder para revogação
+  const searchHolderCreds = useCallback(async () => {
+    if (!revokeDid) return;
+    setSearchingCreds(true);
+    setHolderCreds([]);
+    setRevokeResult(null);
+    try {
+      const res = await fetch(`${API}/credentials/holder/${encodeURIComponent(revokeDid)}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // Só mostra as que foram emitidas pelo issuer selecionado
+        const filtered = selectedIssuer
+          ? data.filter((c: { issuerDid: string }) => c.issuerDid === selectedIssuer.did)
+          : data;
+        setHolderCreds(filtered);
+        if (filtered.length === 0) {
+          setRevokeResult({ ok: false, msg: 'Nenhuma credencial encontrada para este DID emitida por você.' });
+        }
+      }
+    } catch {
+      setRevokeResult({ ok: false, msg: 'Erro ao buscar credenciais' });
+    } finally {
+      setSearchingCreds(false);
+    }
+  }, [revokeDid, selectedIssuer]);
+
+  // Revoga uma credencial específica
+  const revokeCredential = useCallback(async (credId: string) => {
+    if (!confirm('Tem certeza? A revogação NÃO pode ser desfeita.')) return;
+    setRevokeResult(null);
+    try {
+      const res = await fetch(`${API}/credentials/${credId}/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: revokeReason || 'Revogado pelo issuer' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const cascadeMsg = data.cascadeRevoked > 0
+          ? ` Em cascata, ${data.cascadeRevoked} credencial(is) dependente(s) também foram revogadas.`
+          : '';
+        setRevokeResult({ ok: true, msg: `Credencial revogada com sucesso!${cascadeMsg}` });
+        // Atualiza a lista
+        searchHolderCreds();
+      } else {
+        setRevokeResult({ ok: false, msg: data.message ?? 'Erro ao revogar' });
+      }
+    } catch {
+      setRevokeResult({ ok: false, msg: 'Erro de conexão' });
+    }
+  }, [revokeReason, searchHolderCreds]);
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -315,6 +374,106 @@ export default function IssuerPortal() {
                     />
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SEÇÃO DE REVOGAÇÃO */}
+        {selectedIssuer && (
+          <div className="space-y-4 p-5 rounded-2xl border border-red-900/40 bg-red-950/10">
+            <h2 className="text-sm font-semibold text-red-300">
+              ⚠️ Revogar credencial
+            </h2>
+            <p className="text-xs text-zinc-400">
+              Use quando o aluno sair, for jubilado, ou tiver acesso cancelado.
+              {selectedIssuer.type === 'university' && (
+                <span className="block mt-1 text-amber-400">
+                  ⚡ Como UNIFESP/Coordenação, revogar AlunoCredential <b>revoga em cascata</b> todas
+                  as credenciais de Membro/Colaborador/Visitante do mesmo holder.
+                </span>
+              )}
+            </p>
+
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">DID do holder (a quem a credencial pertence)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={revokeDid}
+                  onChange={e => setRevokeDid(e.target.value)}
+                  placeholder="did:key:z6Mk..."
+                  className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm font-mono"
+                />
+                <button
+                  onClick={searchHolderCreds}
+                  disabled={!revokeDid || searchingCreds}
+                  className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm transition disabled:opacity-40"
+                >
+                  {searchingCreds ? 'Buscando...' : 'Buscar'}
+                </button>
+              </div>
+            </div>
+
+            {holderCreds.length > 0 && (
+              <>
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1">Motivo da revogação (opcional)</label>
+                  <input
+                    type="text"
+                    value={revokeReason}
+                    onChange={e => setRevokeReason(e.target.value)}
+                    placeholder="ex: aluno jubilado, transferiu de curso, saiu da agremiação"
+                    className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs text-zinc-500">Credenciais encontradas:</p>
+                  {holderCreds.map(cred => (
+                    <div
+                      key={cred.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                    >
+                      <div className="flex-1">
+                        <div className="text-sm text-zinc-200">
+                          {cred.credentialType.replace('Credential', '')}
+                          <span className="ml-2 text-xs text-zinc-500">
+                            ({String((cred.claims as Record<string, unknown>).nome ?? '—')})
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-500 mt-0.5">
+                          Status:{' '}
+                          <span className={cred.status === 'active' ? 'text-green-400' : 'text-red-400'}>
+                            {cred.status}
+                          </span>
+                          {' · '}
+                          Emitida por {cred.issuer.name}
+                        </div>
+                      </div>
+                      {cred.status === 'active' ? (
+                        <button
+                          onClick={() => revokeCredential(cred.id)}
+                          className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-medium transition"
+                        >
+                          Revogar
+                        </button>
+                      ) : (
+                        <span className="text-xs text-zinc-500">já revogada</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {revokeResult && (
+              <div className={`p-3 rounded-xl border text-sm ${
+                revokeResult.ok
+                  ? 'bg-green-950/30 border-green-800 text-green-300'
+                  : 'bg-red-950/30 border-red-800 text-red-300'
+              }`}>
+                {revokeResult.msg}
               </div>
             )}
           </div>

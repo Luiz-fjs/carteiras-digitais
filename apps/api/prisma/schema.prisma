@@ -8,17 +8,34 @@ datasource db {
 }
 
 model Issuer {
-  id                  String       @id @default(uuid())
-  name                String       @unique
-  did                 String       @unique
+  id                  String           @id @default(uuid())
+  name                String           @unique
+  did                 String           @unique
   type                String
-  publicKey           Bytes        @map("public_key")
-  encryptedPrivateKey Bytes        @map("encrypted_private_key")
-  createdAt           DateTime     @default(now()) @map("created_at")
+  publicKey           Bytes            @map("public_key")
+  encryptedPrivateKey Bytes            @map("encrypted_private_key")
+  createdAt           DateTime         @default(now()) @map("created_at")
   credentials         Credential[]
   rooms               Room[]
+  statusList          IssuerStatusList?
 
   @@map("issuers")
+}
+
+// W3C Status List 2021 — bitmap por issuer.
+// Cada credencial emitida ocupa 1 bit nesse bitmap (0 = ativa, 1 = revogada).
+// Capacidade inicial: 16.384 credenciais (2048 bytes).
+model IssuerStatusList {
+  id          String   @id @default(uuid())
+  issuerId    String   @unique @map("issuer_id")
+  bitstring   Bytes    @map("bitstring")              // bitmap cru
+  nextIndex   Int      @default(0) @map("next_index") // próximo índice livre
+  capacity    Int      @default(16384)                // capacidade total
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  signedListJwt String? @map("signed_list_jwt")        // cache do JWT assinado
+  issuer      Issuer   @relation(fields: [issuerId], references: [id])
+
+  @@map("issuer_status_lists")
 }
 
 model Room {
@@ -43,6 +60,7 @@ model Credential {
   jwt              String
   claims           String            @default("{}")
   status           String            @default("active")
+  statusListIndex  Int?              @map("status_list_index")  // W3C Status List 2021
   issuedAt         DateTime          @default(now()) @map("issued_at")
   expiresAt        DateTime?         @map("expires_at")
   revokedAt        DateTime?         @map("revoked_at")

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CryptoService } from '../crypto.service';
+import { StatusListService } from '../status-list/status-list.service';
 import { v4 as uuid } from 'uuid';
 
 export interface AccessResult {
@@ -16,6 +17,7 @@ export class PresentationsService {
   constructor(
     private prisma: PrismaService,
     private crypto: CryptoService,
+    private statusList: StatusListService,
   ) {}
 
   async createNonce(roomId: string) {
@@ -95,16 +97,52 @@ export class PresentationsService {
       return this.deny(roomId, holderDid, credentialType, 'Credencial não encontrada no sistema', null);
     }
 
-    if (credRecord.status === 'revoked') {
-      return this.deny(roomId, holderDid, credentialType, 'Credencial revogada pelo emissor', credentialId);
+    // ⭐ ETAPA 4 — Status List 2021 (W3C)
+    // Fonte de verdade descentralizada: consultamos o bitmap assinado do issuer.
+    // Em produção real, o verifier (porta) já teria o bitmap cacheado localmente
+    // — aqui o lookup é instantâneo no banco para fins didáticos.
+    if (credRecord.statusListIndex !== null) {
+      const revokedInList = await this.statusList.isRevoked(
+        credRecord.issuerId,
+        credRecord.statusListIndex,
+      );
+      if (revokedInList) {
+        return this.deny(
+          roomId, holderDid, credentialType,
+          'Credencial revogada (Status List 2021 do issuer)',
+          credentialId, holderName,
+        );
+      }
     }
 
+    // Estados auxiliares mantidos para visitantes e expiração local
     if (credRecord.status === 'used') {
       return this.deny(roomId, holderDid, credentialType, 'Credencial de visitante já utilizada (uso único)', credentialId);
     }
 
     if (credRecord.status === 'expired') {
       return this.deny(roomId, holderDid, credentialType, 'Credencial expirada', credentialId);
+    }
+
+    // 4.5 VERIFICAÇÃO DE CADEIA: para Membro/Colaborador/Visitante, exige AlunoCredential ativa
+    // do mesmo holder. Defesa em profundidade contra "jubilei na UNIFESP mas continuo entrando
+    // na sala da agremiação".
+    const requiresActiveStudent = ['MembroCredential', 'ColaboradorCredential', 'VisitanteCredential'];
+    if (requiresActiveStudent.includes(credentialType)) {
+      const alunoVC = await this.prisma.credential.findFirst({
+        where: {
+          subjectDid: holderDid,
+          credentialType: 'AlunoCredential',
+          status: 'active',
+        },
+      });
+      if (!alunoVC) {
+        return this.deny(
+          roomId, holderDid, credentialType,
+          'Holder não possui AlunoCredential ativa (status na UNIFESP revogado ou inexistente)',
+          credentialId, holderName,
+        );
+      }
     }
 
     // 5. Regras de acesso por tipo

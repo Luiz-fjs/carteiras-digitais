@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma.service';
 import { CryptoService } from '../crypto.service';
+import { StatusListService } from '../status-list/status-list.service';
 import { v4 as uuid } from 'uuid';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class CredentialsService {
   constructor(
     private prisma: PrismaService,
     private crypto: CryptoService,
+    private statusList: StatusListService,
     private config: ConfigService,
   ) {}
 
@@ -47,6 +49,21 @@ export class CredentialsService {
       secret,
     );
 
+    // W3C Status List 2021: aloca um índice na lista do issuer e adiciona
+    // credentialStatus aos claims (cumprindo o data model V1.1)
+    const statusListIndex = await this.statusList.allocateIndex(issuer.id);
+    const apiBase = process.env.PUBLIC_API_URL || `http://localhost:${process.env.API_PORT || 3000}`;
+    const enhancedClaims = {
+      ...dto.claims,
+      credentialStatus: {
+        id: `${apiBase}/status-list/${issuer.id}#${statusListIndex}`,
+        type: 'StatusList2021Entry',
+        statusPurpose: 'revocation',
+        statusListIndex: String(statusListIndex),
+        statusListCredential: `${apiBase}/status-list/${issuer.id}`,
+      },
+    };
+
     const jwt = await this.crypto.signVC({
       issuerDID: issuer.did,
       issuerPrivateKey: privateKey,
@@ -54,7 +71,7 @@ export class CredentialsService {
       subjectDID: dto.subjectDid,
       credentialType: dto.credentialType,
       credentialId,
-      claims: dto.claims,
+      claims: enhancedClaims,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
     });
 
@@ -66,7 +83,8 @@ export class CredentialsService {
         issuerDid: issuer.did,
         subjectDid: dto.subjectDid,
         jwt,
-        claims: JSON.stringify(dto.claims),
+        claims: JSON.stringify(enhancedClaims),
+        statusListIndex,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       },
     });
@@ -121,9 +139,54 @@ export class CredentialsService {
     if (cred.status !== 'active') {
       throw new Error(`Credencial não pode ser revogada — status atual: ${cred.status}`);
     }
-    return this.prisma.credential.update({
+
+    // Revoga no banco (mantemos status como "espelho" local) e flipa o bit
+    // na Status List 2021 — esta é agora a fonte de verdade descentralizada.
+    const revoked = await this.prisma.credential.update({
       where: { id },
       data: { status: 'revoked', revokedAt: new Date(), revocationReason: reason ?? null },
     });
+    if (cred.statusListIndex !== null) {
+      await this.statusList.revokeIndex(cred.issuerId, cred.statusListIndex);
+    }
+
+    // CASCATA SOFT: AlunoCredential da UNIFESP revogada notifica cada issuer
+    // dependente. Em produção real, isso seria via webhook entre instituições;
+    // aqui simulamos chamando o próprio revoke de cada credencial dependente,
+    // o que flipa o bit na status list de cada agremiação separadamente.
+    let cascadeRevoked: { id: string; credentialType: string; issuerDid: string }[] = [];
+    if (cred.credentialType === 'AlunoCredential') {
+      const dependentCreds = await this.prisma.credential.findMany({
+        where: {
+          subjectDid: cred.subjectDid,
+          credentialType: { in: ['MembroCredential', 'ColaboradorCredential', 'VisitanteCredential'] },
+          status: 'active',
+        },
+        select: { id: true, credentialType: true, issuerDid: true, issuerId: true, statusListIndex: true },
+      });
+
+      for (const dep of dependentCreds) {
+        await this.prisma.credential.update({
+          where: { id: dep.id },
+          data: {
+            status: 'revoked',
+            revokedAt: new Date(),
+            revocationReason: `Cascata: AlunoCredential do mesmo holder revogada (${reason ?? 'sem motivo'})`,
+          },
+        });
+        if (dep.statusListIndex !== null) {
+          await this.statusList.revokeIndex(dep.issuerId, dep.statusListIndex);
+        }
+      }
+      cascadeRevoked = dependentCreds.map(d => ({
+        id: d.id, credentialType: d.credentialType, issuerDid: d.issuerDid,
+      }));
+    }
+
+    return {
+      ...revoked,
+      cascadeRevoked: cascadeRevoked.length,
+      cascadeDetails: cascadeRevoked,
+    };
   }
 }
