@@ -125,6 +125,23 @@ Espere cada um terminar de subir antes de testar (a API precisa estar online pri
 
 ---
 
+## Revogação de credenciais
+
+- Quando uma credencial é emitida, ela recebe um campo `credentialStatus` no formato `StatusList2021Entry`, com um índice alocado na status list do issuer.
+- No portal do issuer, é possível revogar uma credencial informando o DID do holder e o motivo da revogação.
+- Revogar uma `AlunoCredential` do UNIFESP aciona uma revogação em cascata para as credenciais dependentes do mesmo holder (`MembroCredential`, `ColaboradorCredential` e `VisitanteCredential`).
+- Na verificação de acesso, o terminal consulta a status list do issuer e nega o acesso caso a credencial tenha sido revogada, retornando uma mensagem como "Credencial revogada (Status List 2021 do issuer)".
+
+Pontos técnicos relevantes:
+
+- Endpoint para revogar: `POST /credentials/:id/revoke`
+- Endpoint público da status list: `GET /status-list/:issuerId`
+- Estatísticas da lista: `GET /status-list/:issuerId/stats`
+
+Esse mecanismo foi pensado para funcionar como uma fonte de verdade descentralizada para revogação, permitindo que a validação continue a funcionar mesmo em cenários com cache local e sem depender de uma consulta online em tempo real.
+
+---
+
 ## Modos de apresentação no terminal
 
 Adicionamos duas formas de entregar a credencial na porta:
