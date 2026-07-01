@@ -138,7 +138,7 @@ Pontos técnicos relevantes:
 - Endpoint público da status list: `GET /status-list/:issuerId`
 - Estatísticas da lista: `GET /status-list/:issuerId/stats`
 
-Esse mecanismo foi pensado para funcionar como uma fonte de verdade descentralizada para revogação, permitindo que a validação continue a funcionar mesmo em cenários com cache local e sem depender de uma consulta online em tempo real.
+Esse mecanismo foi pensado para funcionar como uma fonte de verdade descentralizada para revogação, permitindo que a validação continue a funcionar mesmo em cenários com cache local e sem depender de uma consulta online em tempo real. 
 
 ---
 
